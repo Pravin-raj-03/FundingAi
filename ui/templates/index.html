@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>FundAssist — Funding Intelligence</title>
+
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        background: #0c0c0c;
+        color: #fff;
+        margin: 0;
+        padding: 0;
+    }
+    header {
+        background: #151515;
+        padding: 14px;
+        font-size: 20px;
+        font-weight: bold;
+        text-align: center;
+        border-bottom: 1px solid #222;
+    }
+    .search-box {
+        display: flex;
+        justify-content: center;
+        margin: 20px;
+    }
+    input {
+        width: 60%;
+        padding: 14px;
+        border-radius: 6px;
+        border: none;
+        font-size: 18px;
+        background: #1c1c1c;
+        color: #fff;
+    }
+    button {
+        padding: 14px 24px;
+        background: #007bff;
+        border: none;
+        color: white;
+        border-radius: 6px;
+        margin-left: 10px;
+        cursor: pointer;
+        font-size: 18px;
+    }
+    button:hover { background: #0056c9; }
+
+    .progress-steps {
+        display: flex;
+        justify-content: center;
+        margin-top: 12px;
+        gap: 10px;
+    }
+    .step {
+        padding: 6px 12px;
+        border-radius: 6px;
+        background: #2b2b2b;
+        opacity: 0.3;
+        transition: .3s;
+    }
+    .step.active {
+        background: #007bff;
+        opacity: 1;
+    }
+
+    .results {
+        width: 90%;
+        margin: auto;
+        margin-top: 20px;
+    }
+
+    .card {
+        background: #1b1b1b;
+        padding: 14px;
+        margin-bottom: 12px;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: .3s;
+    }
+    .card:hover { background: #222; }
+
+    .meta { font-size: 14px; opacity: 0.8; }
+
+    /* Overlay */
+    #overlay {
+        display: none;
+        position: fixed;
+        top:0; left:0;
+        width:100%; height:100%;
+        background: rgba(0,0,0,0.85);
+        padding: 20px;
+        overflow-y: auto;
+    }
+    .overlay-content {
+        background: #1d1d1d;
+        padding: 20px;
+        border-radius: 8px;
+    }
+    .close-btn {
+        float: right;
+        cursor: pointer;
+        font-size: 20px;
+        background: #444;
+        padding: 4px 10px;
+        border-radius: 4px;
+    }
+</style>
+</head>
+
+<body>
+<header>FundAssist — India Funding Intelligence</header>
+
+<div class="search-box">
+    <input type="text" id="query" placeholder="Search funding… e.g. Tamil Nadu startup funding">
+    <button onclick="doSearch()">Search</button>
+</div>
+
+<div class="progress-steps">
+    <div id="step1" class="step">Translate</div>
+    <div id="step2" class="step">Search</div>
+    <div id="step3" class="step">Extract</div>
+    <div id="step4" class="step">Rank</div>
+</div>
+
+<h3 style="text-align:center;margin-top:16px;">Top Funding Matches</h3>
+
+<div id="results" class="results"></div>
+
+<div id="overlay">
+    <div class="overlay-content" id="overlayContent">
+        <span class="close-btn" onclick="hideOverlay()">✖</span>
+    </div>
+</div>
+
+<script>
+const API = "http://127.0.0.1:8000/search?q=";
+
+async function doSearch() {
+    const q = document.getElementById("query").value.trim();
+    if (!q) return;
+
+    animateStep(1);
+
+    const res = await fetch(API + encodeURIComponent(q));
+    animateStep(2);
+
+    const data = await res.json();
+    animateStep(3);
+
+    let results = data.funding_results || [];
+
+    // Filter India only
+    results = results.filter(r =>
+        (r.location || "").toLowerCase().includes("india") ||
+        (r.location || "").toLowerCase().includes("tamil")
+    );
+
+    // Sort by info richness score =
+    // amount + investors + stage + date > nulls
+    results.sort((a,b) =>
+        score(b) - score(a)
+    );
+
+    animateStep(4);
+    showResults(results.slice(0,10));
+}
+
+function score(item) {
+    let x = 0;
+    if(item.amount) x+=3;
+    if(item.investors) x+=2;
+    if(item.stage) x+=1;
+    if(item.date) x+=1;
+    if(item.sector) x+=1;
+    return x;
+}
+
+function showResults(results) {
+    const container = document.getElementById("results");
+    container.innerHTML = "";
+
+    if (results.length === 0) {
+        container.innerHTML = "<p>No strong India-funding matches found.</p>";
+        return;
+    }
+
+    results.forEach((r, idx) => {
+        const div = document.createElement("div");
+        div.className = "card";
+
+        div.innerHTML = `
+            <strong>${r.title || "Funding News"}</strong><br>
+            <span class="meta">${r.amount || "Amount: ?"} • ${r.stage || "Stage: ?"}</span><br>
+            <span class="meta">Location: ${r.location || "Unknown"}</span>
+        `;
+
+        div.onclick = () => showOverlay(r);
+        container.appendChild(div);
+    });
+}
+
+function showOverlay(data) {
+    const overlay = document.getElementById("overlay");
+    const content = document.getElementById("overlayContent");
+    overlay.style.display = "block";
+
+    content.innerHTML = `
+        <span class="close-btn" onclick="hideOverlay()">✖</span>
+        <h2>${data.title}</h2>
+        <p><strong>Amount:</strong> ${data.amount || "?"}</p>
+        <p><strong>Stage:</strong> ${data.stage || "?"}</p>
+        <p><strong>Investors:</strong> ${data.investors || "?"}</p>
+        <p><strong>Date:</strong> ${data.date || "?"}</p>
+        <p><strong>Sector:</strong> ${data.sector || "?"}</p>
+        <p><strong>Location:</strong> ${data.location || "?"}</p>
+        <hr>
+        <a href="${data.link}" target="_blank">🔗 View Source</a>
+    `;
+}
+
+function hideOverlay() {
+    document.getElementById("overlay").style.display = "none";
+}
+
+function animateStep(step) {
+    document.querySelectorAll(".step").forEach((s,i)=>{
+        s.classList.toggle("active", i < step);
+    });
+}
+</script>
+
+</body>
+</html>

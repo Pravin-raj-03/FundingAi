@@ -1,0 +1,7 @@
+{
+  "name": "Funding Intelligence",
+  "description": "A modern, multilingual startup funding discovery platform powered by AI.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
